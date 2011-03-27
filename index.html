@@ -1,0 +1,200 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd">
+<html xml:lang="en" xmlns="http://www.w3.org/1999/xhtml" lang="en">
+  <head>
+    <title>CL-EC2 - An Interface to Amazon's Elastic Compute Cloud</title>
+    <style type="text/css">
+      pre { padding:5px; background-color:#e0e0e0 }
+    </style>
+    <link rel="stylesheet" type="text/css" href="index_files/style.css"/>
+    <meta http-equiv="Content-Type" content="text/html; charset=ISO-8859-1"/>
+  </head>
+
+  <body>
+    <div class="header">
+      <h1>CL-EC2 - An Interface to Amazon's Elastic Compute Cloud</h1>
+    </div>
+
+    <h3>Introduction</h3>
+
+    <p>CL-EC2 is a Common Lisp library for communicating with Amazon's EC2 and CloudWatch Query APIs. It was originally written as a foundation for <a href="http://www.saffrontech.com"> Saffron Technology</a>'s       Lisp-based <a href="http://saffronsierra.com">Sierra</a> management environment. As such, CL-EC2 does not implement the entire EC2 Query API, but rather a fairly large subset that may be used to manipulate/query       images, instances, volumes, snapshots, etc. In other words, most of the useful Query API is present, at least from my perspective, but more should be included to finish off the entire API.
+    </p>
+    
+    <p>So far, CL-EC2 has only been tested on SBCL (I use version 1.0.30). There is a minor implementation dependency (for retrieving environment variables) that has been abstracted, so porting CL-EC2 itself should be very easy. However, the library does have dependencies on a few other open-source packages that must be supported by your Lisp platform of choice:
+      <ul>
+        <li>
+          <a href="http://weitz.de/drakma/">Drakma</a>: a tidy web client.
+        </li>
+        <li>
+          <a href="http://method-combination.net/lisp/ironclad/">Ironclad</a>: an easy-to-use cryptography package.
+        </li>
+        <li>
+          <a href="http://common-lisp.net/project/s-xml/">S-XML</a>: a simple XML parser.
+        </li>
+        <li>
+          <a href="http://homepage.mac.com/svc/s-base64/">S-BASE64</a>: a nice library for simple base64 encoding/decoding. Drakma uses this library, so if you can ASDF-INSTALL Drakma that process should pick up s-base64 as well.
+        </li>
+        <li>
+          <a href="http://weitz.de/flexi-streams/">FLEXI-STREAMS</a>: a library offering "virtual" bivalent streams. Drakma uses this library also.
+        </li>
+      </ul>
+    </p>
+
+    <p>
+      If I recall, I was able to use ASDF-INSTALL with most (if not all) of these, using SBCL. YMMV with other Lisp implementations.
+    </p>
+    
+    <p>
+      CL-EC2 is released under an <a href="http://en.wikipedia.org/wiki/MIT_License">MIT-style</a> license.
+
+      <h3>Documentation</h3>
+
+    </p>
+    
+    <p>Right now, generally the source code is the documentation. If you look at api.lisp and cloudwatch.lisp you'll see functions that mimic, in a Lispy fashion, those aspects of the EC2 Query API supported by CL-EC2. As the project evolves documentation will improve.
+    </p>
+    
+    <p>To help get you started, below is a code fragment from our Sierra environment that uses the most complicated CL-EC2 interface -- running an AMI instance. Once you've seen the code in api.lisp you'll see these       operations are straightforward. The only thing to note here is that the :USER-DATA keyword parameter must be a hash table that represents key/value pairs; EC2:RUN-INSTANCES takes this table and transforms it into a       comma-separated list of these pairs. I have no illusions that this approach is ideal; it simply reflects the needs of our Sierra environment, and the fact that the library was not originally intended for general consumption. This is one of probably several weak areas in the API that will change as the project evolves.
+    </p>
+
+    <p>
+      <pre>
+        (defun start-instance (machine user-data)
+          (ec2:run-instances (get-ami-id machine) (default-keyfile) :virtual-name (get-hostname machine)
+                             :instance-type (get-type machine) :user-data user-data :monitor-instance (get-monitoring machine)))
+      </pre>
+    </p>
+
+    <p>
+      I apologize for the lack of written documentation, especially code examples. As the project moves forward I'll try and correct this.
+    </p>
+    
+    <h3>Environment Variables</h3>
+    <p>
+      There are two environment variables you'll need to set before using the library: AWS_ACCESS_KEY_ID and AWS_SECRET_ACCESS_KEY. If you've any familiarity at all with EC2 you'll know what these are. Optionally, you may also set AWS_DEFAULT_AVAILABILITY_ZONE to one of the valid EC2 availability zones, if you typically use just one (as we do right now).
+    </p>
+    
+    <p>
+      <h3>EC2 Query Signing</h3>
+    </p>
+
+    <p>The current version of CL-EC2 uses Signature Version 2 for its query signing. There is also an implementation of Version 1; however, Amazon has apparently deprecated this version and they claim at some point it will no longer be supported.
+    </p>
+
+    <h3>Examples of Usage</h3>
+    <p>
+      Here are a few examples taken from our Sierra environment, which was written atop CL-EC2. Note that Sierra-specific functions are not included in CL-EC2.
+      <pre>
+       SIERRA(36): (ec2:describe-images)
+
+        (&#35;&#60;EC2:AMI id: ami-2b16fa42 (sierra-devel-20100217/sierra-devel-20100217.manifest.xml) {1004647241}&gt
+         &#35;&#60;EC2:AMI id: ami-411df128 (sierra-devel-01142010/sierra-devel-01142010.manifest.xml) {10046473A1}&gt
+         &#35;&#60;EC2:AMI id: ami-6904e900 (sierra-devel/sierra-devel.manifest.xml) {1004647501}&gt
+         &#35;&#60;EC2:AMI id: ami-9c17f5f5 (amismb-centos53/amismb-centos53.manifest.xml) {1004647661}&gt)
+       SIERRA(37):
+       SIERRA(38): (ec2:describe-instances)
+
+       (&#35;&#60;EC2:AMI-INSTANCE i-2710ee4c; ami: ami-2b16fa42; state: running; dns: ec2-67-202-00-000.compute-1.amazonaws.com {10046CF6D1}&gt
+        &#35;&#60;EC2:AMI-INSTANCE i-3511ef5e; ami: ami-2b16fa42; state: running; dns: ec2-75-101-000-000.compute-1.amazonaws.com {10046CFC81}&gt)
+       SIERRA(39):
+       SIERRA(40): (ec2:describe-volumes)
+
+       (&#35;&#60;EC2:VOLUME id: vol-de824200; zone: us-east-1d; status: in-use {1004644571}&gt
+        &#35;&#60;EC2:VOLUME id: vol-819b6100; zone: us-east-1d; status: available {10046446D1}&gt
+        &#35;&#60;EC2:VOLUME id: vol-9339f800; zone: us-east-1d; status: available {1004644831}&gt
+       SIERRA(41):
+       SIERRA(42): (show-stats (cw:get-metric-statistics "NetworkOut" "2010-02-01T00:00:00" "2010-03-01T00:00:00" :period 3600 :statistics '("Sum" "Minimum" "Maximum")))
+       TIME                     SAMPLES             AVERAGE                 SUM                 MIN                 MAX      UNIT
+       2010-02-24T14:00:00Z      120.00                 n/a           1158.0000              0.0000            353.0000     Bytes
+       2010-02-24T13:00:00Z       98.00                 n/a        1648388.0000              0.0000         880308.0000     Bytes
+       2010-02-24T15:00:00Z       32.00                 n/a           8312.0000              0.0000           2552.0000     Bytes
+       SIERRA(43):
+       SIERRA(44): (start-sierra)
+
+       (&#35;&#60;EC2:INITIATED-INSTANCE i-8d7684e6 (solace); reservation: r-f8ca8f90 {1004E5ACC1}&gt
+       SIERRA(45):
+       SIERRA(46): (ping)
+
+       (("solace" . "pending"))
+       SIERRA(47):
+       SIERRA(48): (ping)
+       (("solace" . "ec2-00-000-00-000.compute-1.amazonaws.com")
+        ("grace" . "ec2-00-000-000-000.compute-1.amazonaws.com"))
+       SIERRA(49):
+      </pre>
+
+    <h3>Mailing Lists</h3>
+    <ul>
+      <li>
+        <a href="http://www.common-lisp.net/mailman/listinfo/cl-ec2-devel">CL-EC2-devel</a>
+      </li>
+      <li>
+        <a href="http://www.common-lisp.net/mailman/listinfo/cl-ec2-cvs">CL-EC2-cvs</a>
+      </li>
+      <li>
+        <a href="http://www.common-lisp.net/mailman/listinfo/cl-ec2-announce">CL-EC2-announce</a>
+      </li>
+    </ul>
+
+    <h3>Download</h3>
+    <p>You can download the source code as a gzip'd tarball <a href="cl-ec2.tgz">here</a>. Use ASDF to build/install it.
+    </p>
+
+    <h3>Contributions</h3>
+    <p>
+      I would be thrilled to accept contributions from users of CL-EC2. There are aspects of the EC2 API that are unimplemented because I've had no need for them; current function interfaces are likely
+      not ideal for the general community; and there are probably bugs I haven't encountered yet. At some point, if contributions begin coming in, I'll get the source code into Subversion.
+    </p>
+
+    <h3>A Few Words on Sierra</h3>
+    <p>
+      <a href="http://saffronsierra.com/">SaffronSierra</a> is a developer Platform-as-a-Service for <a href="http://www.saffrontech.com">Saffron Technology</a>'s Natural Intelligence Platform, including SaffronMemoryBase. Using Associative Memory technology, SaffronMemoryBase simplifies data analysis and helps uncover the "World of Experience" that lies within different kinds of data. By leveraging the SaffronMemoryBase REST APIs, it's possible to quickly find connections among people, places, things and events in data, along with their frequency counts.
+    </p>
+    
+    <h3>Project members</h3>
+    <ul>
+      <li>
+        David E. Young (dyoung at saffrontech dot com)
+      </li>
+    </ul>
+
+    <h3>Release History and Change Log</h3>
+    <pre>
+2010-02-25  David E. Young
+
+    * Release 0.3.
+    * Added some additional slots to AMI-INSTANCE (architecture, private and public ip addresses).
+    * Added some examples to the web page.
+      
+2010-02-24  David E. Young
+
+    * Release 0.2.
+    * Borrowed Drakma's URL-ENCODE function and modified it to conform to the Amazon Version 2 signing specification by encoding
+      spaces as %20 rather than '+'.
+
+2010-02-23  David E. Young
+
+        * Release 0.1.
+        * Implements EC2 API version "2009-11-30".
+        * Implements CloudWatch API version "2009-05-15".
+    </pre>
+
+    <h3>Todo</h3>
+    <ul>
+      <li>The remaining pieces of the EC2 Query API need to be implemented.</li>
+      <li>The CL-EC2 API needs to be scrubbed and made accommodating, where necessary, to the general EC2 community.</li>
+      <li>If there ends up being enough interest, get the source code into Subversion.</li>
+      <li>There's an odd bug somewhere, either in CL-EC2 or on the Amazon side, that is exhibited by CW:LIST-METRICS. This query used to work just fine until about a week ago; then it began failing with a DelegationFailure code from EC2. Curiously, the Cloudwatch scratchpad tool provided by Amazon behaves the same way now (although it also used to work).</li>
+      <li>Some general cleanup and refactoring, perhaps.</li>
+      <li>Testing with other Lisp implementations.</li>
+      <li>Decent written documentation and code examples.</li>
+    </ul>
+
+    <div class="footer">
+      <p>Back to <a href="http://common-lisp.net/">Common-lisp.net</a>.</p>  
+    </div>
+
+    <div class="check">
+      <a href="http://validator.w3.org/check/referer">Valid XHTML 1.0 Strict</a>
+    </div>
+  </body>
+</html>

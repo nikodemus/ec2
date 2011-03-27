@@ -1,0 +1,18 @@
+2010-02-25  David E. Young
+
+	* Release 0.3.
+	* Added some additional slots to AMI-INSTANCE (architecture, private and public ip addresses).
+	* Added some examples to the web page.
+
+2010-02-24  David E. Young
+
+	* Release 0.2.
+	* Borrowed Drakma's URL-ENCODE function and modified it to conform to the Amazon Version 2 signing specification by encoding
+	           spaces as %20 rather than '+'.
+
+2010-02-23  David E. Young
+
+	* Release 0.1.
+	* Implements EC2 API version "2009-11-30".
+	* Implements CloudWatch API version "2009-05-15".
+
