@@ -36,6 +36,12 @@
                    :initform (list)
                    :reader get-ip-permissions)))
 
+(defmethod print-object ((group security-group) stream)
+  (if (slot-boundp group 'name)
+      (print-unreadable-object (group stream :type t)
+        (prin1 (get-name group) stream))
+      (call-next-method)))
+
 (defstruct ip-protocol
   protocol from-port to-port ranges)
 
