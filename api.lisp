@@ -25,14 +25,6 @@
 
 (in-package :ec2)
 
-(defun describe-images (&rest ami-ids)
-  (let ((basic-params (append '(("Action" . "DescribeImages") ("Owner.1" . "self"))
-                              (make-entity-list "ImageId" ami-ids))))
-    (make-ami-set (issue-request basic-params))))
-
-(defun describe-image (ami-id)
-  (first (describe-images ami-id)))
-
 (defun describe-instances (&key (keep-reservations nil))
   (flet ((coalesce-instances (set)
            (loop for reservation in set
@@ -149,7 +141,7 @@
   `(let ((drakma:*header-stream* ,stream))
      ,@body))
 
-;;; Keypairs
+;;;; Keypairs
 
 (defun create-keypair (name)
   (let* ((params `(("Action" . "CreateKeyPair")
@@ -175,3 +167,21 @@
                            :fingerprint (getattr '|keyFingerprint| key))
             keys))
     keys))
+
+;;;; Images
+
+(defun describe-images (&rest ami-ids)
+  (let ((basic-params (append '(("Action" . "DescribeImages"))
+                              (make-entity-list "ImageId" ami-ids))))
+    (make-ami-set (issue-request basic-params))))
+
+(defun describe-image (ami-id)
+  (first (describe-images ami-id)))
+
+(defun create-image (instance-id name  &key (description name) no-reboot)
+  (let ((params `(("Action" . "CreateImage")
+                  ("InstanceId" . ,instance-id)
+                  ("Name" . ,name)
+                  ("Description" . ,description)
+                  ,@(when no-reboot `(("NoReboot" . "true"))))))
+    (car (find-element '|imageId| (issue-request params)))))

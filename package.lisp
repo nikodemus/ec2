@@ -63,9 +63,7 @@
 
 (defpackage "EC2"
   (:use "COMMON-LISP" "EC2-PARSER" "EC2-PROTOCOL")
-  (:export "DESCRIBE-IMAGES"
-           "DESCRIBE-IMAGE"
-           "DESCRIBE-VOLUMES"
+  (:export "DESCRIBE-VOLUMES"
            "DESCRIBE-INSTANCES"
            "DESCRIBE-ZONES"
            "ISSUE-REQUEST"
@@ -171,11 +169,16 @@
            "CL-EC2-VERSION"
            "GET-MONITORING-STATE"
            "PENDINGP"
+           ;; Keypairs
            "CREATE-KEYPAIR"
            "DELETE-KEYPAIR"
            "DESCRIBE-KEYPAIRS"
            "GET-FINGERPRINT"
-           "GET-MATERIAL"))
+           "GET-MATERIAL"
+           ;; Images
+           "CREATE-IMAGE"
+           "DESCRIBE-IMAGE"
+           "DESCRIBE-IMAGES"))
 
 (defpackage "CLOUDWATCH"
   (:use "COMMON-LISP" "EC2-PARSER" "EC2-PROTOCOL")
