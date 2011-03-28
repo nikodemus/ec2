@@ -51,19 +51,6 @@
 (defun stop-instance (instance-id &key force)
   (first (stop-instances (list instance-id) :force force)))
 
-(defun describe-volumes ()
-  (let ((raw-params '(("Action" . "DescribeVolumes"))))
-    (make-volume-set (issue-request raw-params))))
-
-(defun create-volume (&key (size 5) (zone (aws:default-zone)))
-  (let ((params `(("Action" . "CreateVolume") ("Size" . ,(make-volume-size size)) ("AvailabilityZone" . ,zone))))
-    (create-volume-response (issue-request params))))
-
-(defun delete-volume (volid)
-  (let ((params `(("Action" . "DeleteVolume") ("VolumeId" . ,volid))))
-    (issue-request params)
-    volid))
-
 (defun create-security-group (name description)
   (let ((params `(("Action" . "CreateSecurityGroup") ("GroupName" . ,name)
                   ("GroupDescription" . ,(encode-group-description description)))))
@@ -92,11 +79,6 @@
 (defun describe-snapshots (&rest snapshot-ids)
   (let ((params (append '(("Action" . "DescribeSnapshots")) (make-entity-list "SnapshotId" snapshot-ids))))
     (collect-snapshots (issue-request params))))
-
-(defun attach-volume (volid instid device)
-  (let ((params `(("Action" . "AttachVolume") ("VolumeId" . ,volid) ("InstanceId" . ,instid)
-                  ("Device" . ,device))))
-    (make-attached-volume (issue-request params))))
 
 (defun monitor-instances (&rest instance-ids)
   (let ((params (append '(("Action" . "MonitorInstances")) (make-entity-list "InstanceId" instance-ids))))
@@ -191,3 +173,38 @@
                       `(("SecurityGroup" . ,security-group))))))
     (make-initiated-instance (issue-request params) :virtual-name virtual-name)))
 
+;;;; Volumes
+
+(defun attach-volume (volid instid device)
+  (let ((params `(("Action" . "AttachVolume") ("VolumeId" . ,volid) ("InstanceId" . ,instid)
+                  ("Device" . ,device))))
+    (make-attached-volume (issue-request params))))
+
+(defun create-volume (&key size snapshot-id (zone aws:*default-zone*))
+  (let ((params `(("Action" . "CreateVolume")
+                  ("AvailabilityZone" . ,zone)
+                  ,@(when size
+                      `(("Size" . ,(make-volume-size size))))
+                  ,@(when snapshot-id
+                      `(("SnapshotId" . ,snapshot-id))))))
+    (create-volume-response (issue-request params))))
+
+(defun delete-volume (volid)
+  (let ((params `(("Action" . "DeleteVolume") ("VolumeId" . ,volid))))
+    (issue-request params)
+    volid))
+
+(defun describe-volumes ()
+  (let ((raw-params '(("Action" . "DescribeVolumes"))))
+    (make-volume-set (issue-request raw-params))))
+
+(defun detach-volume (volume-id &key instance-id device force)
+  (let ((params `(("Action" . "DetachVolume")
+                  ("VolumeId" . ,volume-id)
+                  ,@(when instance-id
+                      `(("InstanceId" . ,instance-id)))
+                  ,@(when device
+                      `(("Device" . ,device)))
+                  ,@(when force
+                      `(("Force" . "true"))))))
+    (issue-request params)))
