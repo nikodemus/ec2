@@ -25,22 +25,6 @@
 
 (in-package :ec2)
 
-(defun describe-instances (&key (keep-reservations nil))
-  (flet ((coalesce-instances (set)
-           (loop for reservation in set
-                nconc (second reservation))))
-    (let* ((raw-params '(("Action" . "DescribeInstances")))
-           (set (make-ami-instance-set (issue-request raw-params))))
-      (if keep-reservations
-          set
-        (coalesce-instances set)))))
-
-(defun terminate-instances (&rest inst-ids)
-  (let ((params (append '(("Action" . "TerminateInstances"))
-                        (make-entity-list "InstanceId" inst-ids))))
-    (issue-request params)
-    inst-ids))
-
 (defun describe-zones ()
   (let ((raw-params '(("Action" . "DescribeAvailabilityZones"))))
     (make-availability-zone-set (issue-request raw-params))))
@@ -48,21 +32,6 @@
 (defun get-console-output (instid)
   (let ((params `(("Action" . "GetConsoleOutput") ("InstanceId" . ,instid))))
     (make-console-output (issue-request params))))
-
-(defun run-instances (image-id key-name &key (virtual-name nil) (instance-type "m1.large") (mincount "1")
-                      (maxcount "1") (user-data nil) (zone (aws:default-zone)) (monitor-instance nil)
-                      (security-group nil))
-  (let ((params `(("Action" . "RunInstances") ("ImageId" . ,image-id) ("KeyName" . ,key-name)
-                  ("InstanceType" . ,instance-type) ("MinCount" . ,mincount)
-                  ("MaxCount" . ,maxcount) ("Placement.AvailabilityZone" . ,zone)
-                  ("Monitoring.Enabled" . ,(if monitor-instance "true" "false"))
-                  ,@(when user-data
-                      `(("UserData" . ,(encode-user-data user-data))))
-                  ,@(when security-group
-                      `(("SecurityGroup" . ,security-group))))))
-    (make-initiated-instance (issue-request params) :virtual-name virtual-name)))
-
-
 
 (defun start-instances (instance-ids)
   (let ((params `(("Action" . "StartInstances")
@@ -185,3 +154,40 @@
                   ("Description" . ,description)
                   ,@(when no-reboot `(("NoReboot" . "true"))))))
     (car (find-element '|imageId| (issue-request params)))))
+
+;;;; Instances
+
+(defun describe-instances (&key instance-id keep-reservations)
+  (flet ((coalesce-instances (set)
+           (loop for reservation in set
+                nconc (second reservation))))
+    (let* ((raw-params `(("Action" . "DescribeInstances")
+                         ,@(when instance-id
+                             `(("InstanceId" . ,instance-id)))))
+           (set (make-ami-instance-set (issue-request raw-params))))
+      (if keep-reservations
+          set
+          (coalesce-instances set)))))
+
+(defun describe-instance (instance-id)
+  (first (describe-instances :instance-id instance-id)))
+
+(defun terminate-instances (&rest inst-ids)
+  (let ((params (append '(("Action" . "TerminateInstances"))
+                        (make-entity-list "InstanceId" inst-ids))))
+    (issue-request params)
+    inst-ids))
+
+(defun run-instances (image-id key-name &key (virtual-name nil) (instance-type "m1.large") (mincount "1")
+                      (maxcount "1") (user-data nil) (zone (aws:default-zone)) (monitor-instance nil)
+                      (security-group nil))
+  (let ((params `(("Action" . "RunInstances") ("ImageId" . ,image-id) ("KeyName" . ,key-name)
+                  ("InstanceType" . ,instance-type) ("MinCount" . ,mincount)
+                  ("MaxCount" . ,maxcount) ("Placement.AvailabilityZone" . ,zone)
+                  ("Monitoring.Enabled" . ,(if monitor-instance "true" "false"))
+                  ,@(when user-data
+                      `(("UserData" . ,(encode-user-data user-data))))
+                  ,@(when security-group
+                      `(("SecurityGroup" . ,security-group))))))
+    (make-initiated-instance (issue-request params) :virtual-name virtual-name)))
+

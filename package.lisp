@@ -64,7 +64,6 @@
 (defpackage "EC2"
   (:use "COMMON-LISP" "EC2-PARSER" "EC2-PROTOCOL")
   (:export "DESCRIBE-VOLUMES"
-           "DESCRIBE-INSTANCES"
            "DESCRIBE-ZONES"
            "ISSUE-REQUEST"
            "AMI-INSTANCE"
@@ -141,7 +140,6 @@
            "BLOCK-DEVICE-ATTACH-TIME"
            "BLOCK-DEVICE-TERMINATION-BEHAVIOR"
            "GET-VOLUMES"
-           "TERMINATE-INSTANCES"
            "ATTACH-VOLUME"
            "ATTACHED-VOLUME-RESPONSE"
            "ATTACHED-VOLUME-RESPONSE-VOLUME-ID"
@@ -178,7 +176,13 @@
            ;; Images
            "CREATE-IMAGE"
            "DESCRIBE-IMAGE"
-           "DESCRIBE-IMAGES"))
+           "DESCRIBE-IMAGES"
+           ;; Instances
+           "DESCRIBE-INSTANCES"
+           "DESCRIBE-INSTANCE"
+           "TERMINATE-INSTANCES"
+           "RUN-INSTANCES"
+           ))
 
 (defpackage "CLOUDWATCH"
   (:use "COMMON-LISP" "EC2-PARSER" "EC2-PROTOCOL")
