@@ -58,12 +58,15 @@
     (make-console-output (issue-request params))))
 
 (defun run-instances (image-id key-name &key (virtual-name nil) (instance-type "m1.large") (mincount "1")
-                      (maxcount "1") (user-data nil) (zone aws:*default-zone*) (monitor-instance nil))
+                      (maxcount "1") (user-data nil) (zone aws:*default-zone*) (monitor-instance nil)
+                      (security-group nil))
   (let ((params `(("Action" . "RunInstances") ("ImageId" . ,image-id) ("KeyName" . ,key-name)
                   ("InstanceType" . ,instance-type) ("MinCount" . ,mincount)
                   ("MaxCount" . ,maxcount) ("Placement.AvailabilityZone" . ,zone)
                   ("Monitoring.Enabled" . ,(if monitor-instance "true" "false"))
-                  ("UserData" . ,(encode-user-data user-data)))))
+                  ("UserData" . ,(encode-user-data user-data))
+                  ,@(when security-group
+                      `(("SecurityGroup" . ,security-group))))))
     (make-initiated-instance (issue-request params) :virtual-name virtual-name)))
 
 (defun describe-volumes ()
