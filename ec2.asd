@@ -61,8 +61,10 @@
                (:file "cloudwatch" :depends-on ("aws" "signing" "parser"))
                (:file "snapshot" :depends-on ("parser"))
                (:file "initiated-instance" :depends-on ("parser"))
+               (:file "key" :depends-on ("package"))
                (:file "ec2" :depends-on ("aws" "signing" "ami" "volume" "ami-instance" "availability-zone"
                                          "console-output" "security-group" "create-volume" "attach-volume"
-                                         "initiated-instance" "cloudwatch" "snapshot" "conditions" "package"))
+                                         "initiated-instance" "cloudwatch" "snapshot" "conditions" "package"
+                                         "key"))
                (:file "api" :depends-on ("ec2")))
   :depends-on (:s-xml :s-base64 :ironclad :drakma))

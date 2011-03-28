@@ -127,3 +127,30 @@
 (defmacro with-header-stream ((&optional (stream *standard-output*)) &body body)
   `(let ((drakma:*header-stream* ,stream))
      ,@body))
+
+;;; Keypairs
+
+(defun create-keypair (name)
+  (let* ((params `(("Action" . "CreateKeyPair")
+                   ("KeyName" . ,name)))
+         (response (issue-request params)))
+    (make-instance 'private-key
+                   :name (car (find-element '|keyName| response))
+                   :fingerprint (car (find-element '|keyFingerprint| response))
+                   :material (car (find-element '|keyMaterial| response)))))
+
+(defun delete-keypair (name)
+  (let ((params `(("Action" . "DeleteKeyPair")
+                  ("KeyName" . ,name))))
+    (string= "true"
+             (car (find-element '|return| (issue-request params))))))
+
+(defun describe-keypairs ()
+  (let ((params `(("Action" . "DescribeKeyPairs")))
+        (keys nil))
+    (with-element-children (key (find-element '|keySet| (issue-request params)))
+      (push (make-instance 'key
+                           :name (getattr '|keyName| key)
+                           :fingerprint (getattr '|keyFingerprint| key))
+            keys))
+    keys))

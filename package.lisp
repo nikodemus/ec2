@@ -161,7 +161,12 @@
            "VOLUME-AVAILABLE-P"
            "CL-EC2-VERSION"
            "GET-MONITORING-STATE"
-           "PENDINGP"))
+           "PENDINGP"
+           "CREATE-KEYPAIR"
+           "DELETE-KEYPAIR"
+           "DESCRIBE-KEYPAIRS"
+           "GET-FINGERPRINT"
+           "GET-MATERIAL"))
 
 (defpackage "CLOUDWATCH"
   (:use "COMMON-LISP" "EC2-PARSER" "EC2-PROTOCOL")
