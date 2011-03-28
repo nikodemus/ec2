@@ -74,7 +74,7 @@
   (string= (get-state instance) "terminated"))
 
 (defun pendingp (instance)
-  (string= (get-status instance) "pending"))
+  (string= (get-state instance) "pending"))
 
 (defmethod print-object ((self ami-instance) strm)
   (print-unreadable-object (self strm :identity t :type t)
