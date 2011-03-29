@@ -35,7 +35,10 @@
                 "GETENV")
   (:export "*ACCESS-KEY*"
            "*SECRET-KEY*"
-           "*DEFAULT-ZONE*"))
+           "*DEFAULT-ZONE*"
+            "ACCESS-KEY"
+            "SECRET-KEY"
+            "DEFAULT-ZONE"))
 
 (defpackage "EC2-PARSER"
   (:use "COMMON-LISP")

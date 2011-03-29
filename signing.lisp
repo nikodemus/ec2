@@ -40,9 +40,9 @@
 
 (defun signing-key ()
   #+:ec2-signature-version=2
-  aws:*secret-key*
+  (aws:secret-key)
   #+:ec2-signature-version=1
-  aws:*access-key*)
+  (aws:access-key))
 
 (defmethod make-digest (data-string &key (digest :sha1))
   (let ((hmac (ironclad:make-hmac (ironclad:ascii-string-to-byte-array (signing-key)) digest)))

@@ -78,7 +78,7 @@
 
 (defmethod make-parameters (command-params api-version)
   (let ((access-params `(("SignatureVersion" . "2") ("SignatureMethod" . ,(signature-method))
-                         ("Timestamp" . ,(make-timestamp)) ("AWSAccessKeyId" . ,aws:*access-key*)
+                         ("Timestamp" . ,(make-timestamp)) ("AWSAccessKeyId" . ,(aws:access-key))
                          ("Version" . ,api-version))))
     (sort-params (append command-params access-params))))
 

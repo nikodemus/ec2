@@ -25,13 +25,18 @@
 
 (in-package :aws)
 
-(defparameter *access-key* nil)
-(defparameter *secret-key* nil)
-(defparameter *default-zone* nil)
+(defparameter *access-key* (getenv "AWS_ACCESS_KEY_ID"))
+(defparameter *secret-key* (getenv "AWS_SECRET_ACCESS_KEY"))
+(defparameter *default-zone* (getenv "AWS_DEFAULT_AVAILABILITY_ZONE" "us-east-1d"))
 
-(eval-when (:load-toplevel :execute)
-  (setf *access-key* (getenv "AWS_ACCESS_KEY_ID"))
-  (setf *secret-key* (getenv "AWS_SECRET_ACCESS_KEY"))
-  (setf *default-zone* (getenv "AWS_DEFAULT_AVAILABILITY_ZONE" "us-east-1d"))
-  (unless (and *access-key* *secret-key*)
-    (error "You must define the environment variables AWS_ACCESS_KEY_ID and AWS_SECRET_ACCESS_KEY")))
+(defun access-key ()
+  (or *access-key*
+      (error "AWS access key not set.")))
+
+(defun secret-key ()
+  (or *secret-key*
+      (error "AWS secret key not set.")))
+
+(defun default-zone ()
+  (or *default-zone*
+      (error "AWS default zone not set.")))

@@ -40,7 +40,6 @@
     (encode-sha1 (make-digest data-string :digest (digest-method)))))
 
 (defmethod make-parameters (command-params api-version)
-  (let ((access-params `(("AWSAccessKeyId" . ,aws:*access-key*) ("SignatureVersion" . "1")
+  (let ((access-params `(("AWSAccessKeyId" . ,(aws:access-key)) ("SignatureVersion" . "1")
                          ("Timestamp" . ,(make-timestamp)) ("Version" . ,api-version))))
     (sort-params (append command-params access-params))))
-

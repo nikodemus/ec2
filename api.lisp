@@ -58,7 +58,7 @@
     (make-console-output (issue-request params))))
 
 (defun run-instances (image-id key-name &key (virtual-name nil) (instance-type "m1.large") (mincount "1")
-                      (maxcount "1") (user-data nil) (zone aws:*default-zone*) (monitor-instance nil)
+                      (maxcount "1") (user-data nil) (zone (aws:default-zone)) (monitor-instance nil)
                       (security-group nil))
   (let ((params `(("Action" . "RunInstances") ("ImageId" . ,image-id) ("KeyName" . ,key-name)
                   ("InstanceType" . ,instance-type) ("MinCount" . ,mincount)
@@ -73,7 +73,7 @@
   (let ((raw-params '(("Action" . "DescribeVolumes"))))
     (make-volume-set (issue-request raw-params))))
 
-(defun create-volume (&key (size 5) (zone aws:*default-zone*))
+(defun create-volume (&key (size 5) (zone (aws:default-zone)))
   (let ((params `(("Action" . "CreateVolume") ("Size" . ,(make-volume-size size)) ("AvailabilityZone" . ,zone))))
     (create-volume-response (issue-request params))))
 
