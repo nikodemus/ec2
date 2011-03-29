@@ -70,6 +70,26 @@
                       `(("SecurityGroup" . ,security-group))))))
     (make-initiated-instance (issue-request params) :virtual-name virtual-name)))
 
+
+
+(defun start-instances (instance-ids)
+  (let ((params `(("Action" . "StartInstances")
+                  ,@(make-entity-list "InstanceId" instance-ids))))
+    (make-instance-state-change-set (issue-request params))))
+
+(defun start-instance (instance-id)
+  (first (start-instances (list instance-id))))
+
+(defun stop-instances (instance-ids &key force)
+  (let ((params `(("Action" . "StopInstances")
+                  ,@(make-entity-list "InstanceId" instance-ids)
+                  ,@(when force
+                      `(("Force" . "true"))))))
+    (make-instance-state-change-set (issue-request params))))
+
+(defun stop-instance (instance-id &key force)
+  (first (stop-instances (list instance-id) :force force)))
+
 (defun describe-volumes ()
   (let ((raw-params '(("Action" . "DescribeVolumes"))))
     (make-volume-set (issue-request raw-params))))

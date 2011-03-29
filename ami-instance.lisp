@@ -101,7 +101,7 @@
   (collecting-element-children (instance (find-element '|instancesSet| reservation))
     (make-instance 'ami-instance
                    :reservation-id (getattr '|reservationId| reservation)
-                   :instance-id (getattr '|instanceId| instance) 
+                   :instance-id (getattr '|instanceId| instance)
                    :image-id (getattr '|imageId| instance)
                    :state (find-instance-state instance)
                    :architecture (getattr '|architecture| instance)
@@ -124,3 +124,8 @@
     (let ((resid (getattr '|reservationId| reservation)))
       `(,resid ,(make-ami-instance reservation)))))
 
+(defun make-instance-state-change-set (response)
+  (collecting-element-children (node (find-element '|instancesSet| response))
+    (list :id (getattr '|instanceId| node)
+          :current-state (getattr '|name| (getattrs '|currentState| node))
+          :previous-state (getattr '|name| (getattrs '|previousState| node)))))
