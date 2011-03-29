@@ -78,9 +78,11 @@
 
 (defmethod print-object ((self ami-instance) strm)
   (print-unreadable-object (self strm :identity t :type t)
-    (format strm "~A; ami: ~A; state: ~A" (get-instance-id self) (get-image-id self) (get-state self))
-    (unless (terminatedp self)
-      (format strm "; dns: ~A" (get-public-dns self)))))
+    (format strm "~A; ~A; ~A"
+            (get-instance-id self) (get-image-id self) (get-state self))
+    (let ((dns (get-public-dns self)))
+      (when dns
+        (format strm "; dns: ~A" dns)))))
 
 (defun find-instance-state (instance)
   ;; instance-state looks like ((|code| "16") (|name| "running"))
