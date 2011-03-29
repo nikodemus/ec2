@@ -64,7 +64,8 @@
                   ("InstanceType" . ,instance-type) ("MinCount" . ,mincount)
                   ("MaxCount" . ,maxcount) ("Placement.AvailabilityZone" . ,zone)
                   ("Monitoring.Enabled" . ,(if monitor-instance "true" "false"))
-                  ("UserData" . ,(encode-user-data user-data))
+                  ,@(when user-data
+                      `(("UserData" . ,(encode-user-data user-data))))
                   ,@(when security-group
                       `(("SecurityGroup" . ,security-group))))))
     (make-initiated-instance (issue-request params) :virtual-name virtual-name)))
