@@ -77,6 +77,8 @@
            "GET-STATE"
            "GET-PRIVATE-DNS"
            "GET-PUBLIC-DNS"
+           "GET-PRIVATE-IP-ADDRESS"
+           "GET-PUBLIC-IP-ADDRESS"
            "GET-INSTANCE-TYPE"
            "GET-LAUNCH-TIME"
            "GET-LAUNCH-INDEX"
