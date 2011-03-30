@@ -123,7 +123,7 @@
 
 (defun unmonitor-instances (&rest instance-ids)
   (let ((params (append '(("Action" . "UnmonitorInstances")) (make-entity-list "InstanceId" instance-ids))))
-    (cloudwatch:make-monitored-instance (issue-request params))))
+    (cloudwatch:collect-monitored-instances (issue-request params))))
 
 (defmacro with-header-stream ((&optional (stream *standard-output*)) &body body)
   `(let ((drakma:*header-stream* ,stream))
