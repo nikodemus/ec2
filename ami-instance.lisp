@@ -76,6 +76,12 @@
 (defun pendingp (instance)
   (string= (get-state instance) "pending"))
 
+(defun stoppingp (instance)
+  (string= (get-state instance) "stopping"))
+
+(defun stoppedp (instance)
+  (string= (get-state instance) "stopped"))
+
 (defmethod print-object ((self ami-instance) strm)
   (print-unreadable-object (self strm :identity t :type t)
     (format strm "~A; ~A; ~A"

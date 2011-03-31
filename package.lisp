@@ -164,6 +164,8 @@
            "CL-EC2-VERSION"
            "GET-MONITORING-STATE"
            "PENDINGP"
+           "STOPPINGP"
+           "STOPPEDP"
            ;; Keypairs
            "CREATE-KEYPAIR"
            "DELETE-KEYPAIR"
