@@ -67,7 +67,7 @@
        do (cond ((or (char<= #\0 char #\9)
                      (char<= #\a char #\z)
                      (char<= #\A char #\Z)
-                     (find char "$-_.!*'()," :test #'char=))
+                     (find char "-_.~" :test #'char=))
                  (write-char char strm))
                 ;; according to the Amazon docs, spaces must be encoded as %20, not '+' as the Drakma version does; thus the test for #\Space has
                 ;; been removed.
