@@ -64,6 +64,14 @@
   (:method ((value t))
     (error 'volume-size-error :requested-size value)))
 
+(defun make-integer (int)
+  (etypecase int
+    (integer
+       (write-to-string int :radix nil :base 10))
+    (string
+       (parse-integer int)
+       int)))
+
 (defmethod encode-user-data (udata)
   (flet ((format-udata ()
            (let ((pairs (loop for key being the hash-key of udata using (hash-value value)

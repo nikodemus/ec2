@@ -44,12 +44,14 @@
   (with-element-children (item (find-element '|instancesSet| body))
     (return (values (getattr '|instanceId| item) (getattr '|launchTime| item)))))
 
-(defun make-initiated-instance (body &key (virtual-name nil))
-  (multiple-value-bind (inst-id launch-time)
-      (get-initiated-instance-data body)
-    (make-instance 'initiated-instance
-                   :request-id (getattr '|requestId| body)
-                   :reservation-id (getattr '|reservationId| body)
-                   :virtual-name virtual-name
-                   :instance-id inst-id
-                   :launch-time launch-time)))
+(defun make-initiated-instances (body &key (virtual-name nil))
+  (collecting-element-children (item (find-element '|instancesSet| body))
+    (let ((inst-id (getattr '|instanceId| item))
+          (launch-time (getattr '|launchTime| item)))
+      (make-instance 'initiated-instance
+                     :request-id (getattr '|requestId| body)
+                     :reservation-id (getattr '|reservationId| body)
+                     :virtual-name virtual-name
+                     :instance-id inst-id
+                     :launch-time launch-time))))
+
