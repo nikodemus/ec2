@@ -106,6 +106,7 @@
            "WITH-HEADER-STREAM"
            "SECURITY-GROUP"
            "DESCRIBE-SECURITY-GROUPS"
+           "CREATE-SECURITY-GROUP"
            "IP-PROTOCOL"
            "GET-NAME"
            "GET-DESCRIPTION"
