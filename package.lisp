@@ -176,6 +176,7 @@
            "CREATE-IMAGE"
            "DESCRIBE-IMAGE"
            "DESCRIBE-IMAGES"
+           "DEREGISTER-IMAGE"
            ;; Instances
            "DESCRIBE-INSTANCES"
            "DESCRIBE-INSTANCE"

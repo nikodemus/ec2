@@ -121,14 +121,6 @@
 
 ;;;; Images
 
-(defun describe-images (&rest ami-ids)
-  (let ((basic-params (append '(("Action" . "DescribeImages"))
-                              (make-entity-list "ImageId" ami-ids))))
-    (make-ami-set (issue-request basic-params))))
-
-(defun describe-image (ami-id)
-  (first (describe-images ami-id)))
-
 (defun create-image (instance-id name  &key (description name) no-reboot)
   (let ((params `(("Action" . "CreateImage")
                   ("InstanceId" . ,instance-id)
@@ -136,6 +128,23 @@
                   ("Description" . ,description)
                   ,@(when no-reboot `(("NoReboot" . "true"))))))
     (car (find-element '|imageId| (issue-request params)))))
+
+(defun describe-images (&key images owners)
+  (let ((params `(("Action" . "DescribeImages")
+                  ,@(when images
+                      (make-entity-list "ImageId" images))
+                  ,@(when owners
+                      (make-entity-list "Owner" owners)))))
+    (make-ami-set (issue-request params))))
+
+(defun describe-image (ami-id)
+  (first (describe-images :images (list ami-id))))
+
+(defun deregister-image (ami-id)
+  (let ((params `(("Action" . "DeregisterImage")
+                  ("ImageId" . ,ami-id))))
+    (issue-request params)
+    t))
 
 ;;;; Instances
 
