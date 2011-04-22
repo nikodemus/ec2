@@ -40,18 +40,13 @@
   (print-unreadable-object (self strm :identity t :type t)
     (format strm "~A (~A); reservation: ~A" (get-instance-id self) (get-virtual-name self) (get-reservation-id self))))
 
-(defun get-initiated-instance-data (body)
-  (with-element-children (item (find-element '|instancesSet| body))
-    (return (values (getattr '|instanceId| item) (getattr '|launchTime| item)))))
-
 (defun make-initiated-instances (body &key (virtual-name nil))
-  (collecting-element-children (item (find-element '|instancesSet| body))
-    (let ((inst-id (getattr '|instanceId| item))
-          (launch-time (getattr '|launchTime| item)))
+  (let ((request-id (getattr '|requestId| body))
+        (reservation-id (getattr '|reservationId| body)))
+    (collecting-element-children (item (find-element '|instancesSet| body))
       (make-instance 'initiated-instance
-                     :request-id (getattr '|requestId| body)
-                     :reservation-id (getattr '|reservationId| body)
+                     :request-id request-id
+                     :reservation-id reservation-id
                      :virtual-name virtual-name
-                     :instance-id inst-id
-                     :launch-time launch-time))))
-
+                     :instance-id (getattr '|instanceId| item)
+                     :launch-time (getattr '|launchTime| item)))))
