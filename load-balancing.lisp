@@ -29,7 +29,7 @@
   (format nil "http://elasticloadbalancing.amazonaws.com/doc/~A/"
           *elb-api-version*))
 (defparameter *elb-namespace*
-  (s-xml:register-namespace *elb-xmlns* "ELB" :ec2))
+  (s-xml:register-namespace *elb-xmlns* "ELB" :elastic-load-balancing))
 (defparameter *elb-url* (concatenate 'string "http://" *elb-host-header*))
 
 (defun elb-request (params)
@@ -50,7 +50,33 @@
               do (write-string (string-capitalize slice) s)
                  (setf start (when p (1+ p)))))))
   (defun make-keyword (string)
-    (intern (string string) :keyword)))
+    (intern (string string) :keyword))
+  (defun expand-parser (spec result)
+    (if (consp spec)
+      (destructuring-bind (action &rest more) spec
+        (ecase action
+          ((:collect :collect*)
+             (let ((kid (gensym "KID"))
+                   (thing (pop more)))
+               `(collecting-element-children (,kid ,(ecase action
+                                                      (:collect `(getattr ',thing ,result))
+                                                      (:collect* `(find-element ',thing ,result))))
+                  ,(expand-parser more kid))))
+          (:plist
+             (let ((plist (pop more)))
+               (assert (not more))
+               `(list ,@(loop while plist for key = (pop plist)
+                              for thing = (pop plist)
+                              append (list key (expand-parser thing result))))))
+          (:list
+             (let ((list (pop more)))
+               (assert (not more))
+               `(list ,@(loop while list
+                              for thing = (pop list)
+                              collect (expand-parser thing result)))))))
+      (if spec
+        `(getattr ',spec ,result)
+        result))))
 
 (defun ensure-list (x)
   (if (listp x)
@@ -96,7 +122,7 @@
   (error "Required parameter ~S missing from call to ~S"
          param action))
 
-(defmacro defaction (action parameters)
+(defmacro defaction (action parameters &optional parser)
   (let (required-parameters keyword-parameters aggregates)
     (dolist (spec parameters)
       (destructuring-bind (name type
@@ -133,35 +159,36 @@
                      ,@(when keyword-parameters '(&key))
                      ,@keyword-parameters)
        (let ,aggregates
-         (elb-request
-         (cons '("Action" . ,(string-camelcase action))
-               (append
-                ,@(mapcar
-                   (lambda (spec)
-                     (destructuring-bind (name type
-                                          &key
-                                          required
-                                          required-aggregate
-                                          required-key)
-                         spec
-                       (if required-aggregate
-                         name
-                         (let ((parameter-form
-                                `(make-parameter
-                                  ,(string-camelcase name)
-                                  ,name
-                                  ',type)))
-                           (cond
-                             (required
-                              parameter-form)
-                             (required-key
-                                  `(if ,name
-                                     ,parameter-form
-                                     (missing-parameter ,(make-keyword name)
-                                                        ',action)))
-                             (t
-                              `(when ,name ,parameter-form)))))))
-                   parameters))))))))
+         (let ((result (elb-request
+                        (cons '("Action" . ,(string-camelcase action))
+                              (append
+                               ,@(mapcar
+                                  (lambda (spec)
+                                    (destructuring-bind (name type
+                                                         &key
+                                                         required
+                                                         required-aggregate
+                                                         required-key)
+                                        spec
+                                      (if required-aggregate
+                                        name
+                                        (let ((parameter-form
+                                               `(make-parameter
+                                                 ,(string-camelcase name)
+                                                 ,name
+                                                 ',type)))
+                                          (cond
+                                            (required
+                                             parameter-form)
+                                            (required-key
+                                             `(if ,name
+                                                ,parameter-form
+                                                (missing-parameter ,(make-keyword name)
+                                                                   ',action)))
+                                            (t
+                                             `(when ,name ,parameter-form)))))))
+                                  parameters))))))
+           ,(expand-parser parser 'result))))))
 
 ;;;; API
 
@@ -189,8 +216,11 @@
     ((instances instances :required t)
      (load-balancer-name string :required t)))
 
-(defaction describe-load-balancers
-    ((load-balancers load-balancer-names)))
+(defaction describe-load-balancers ((load-balancers load-balancer-names))
+  (:collect |DescribeLoadBalancersResult|
+    :plist (:name |LoadBalancerName| :dns |DNSName|
+                  :listeners (:collect* |Listeners|
+                                  :list (|Protocol| |LoadBalancerPort| |InstancePort|)))))
 
 (defaction describe-instance-health
     ((instances instances)
