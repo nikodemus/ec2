@@ -41,15 +41,16 @@
 (defun ensure-compound-element (element)
   (unless (and (consp element) (eq (first element) ec2:*compound-element-tag*))
     (error (make-condition 'element-usage-error :element element))))
-    
+
 (defmacro with-element-children ((var element) &body body)
   (let ((child (gensym))
         (elements (gensym)))
     `(let ((,elements ,element))
-       (dolist (,child ,elements)
-         (when (consp ,child)
-           (let ((,var (rest ,child)))
-             ,@body))))))
+       (when (consp ,elements)
+         (dolist (,child ,elements)
+           (when (consp ,child)
+             (let ((,var (rest ,child)))
+               ,@body)))))))
 
 (defmacro collecting-element-children ((var element) &body body)
   (let ((elements (gensym))

@@ -53,27 +53,35 @@
     (intern (string string) :keyword))
   (defun expand-parser (spec result)
     (if (consp spec)
-      (destructuring-bind (action &rest more) spec
-        (ecase action
-          ((:collect :collect*)
+      (flet ((getter (thing type)
+               (ecase type
+                 (:element `(find-element ',thing ,result))
+                 (:attribute `(getattr ',thing ,result)))))
+        (destructuring-bind (action &rest more) spec
+         (ecase action
+           (:collect
              (let ((kid (gensym "KID"))
+                   (type (pop more))
                    (thing (pop more)))
-               `(collecting-element-children (,kid ,(ecase action
-                                                      (:collect `(getattr ',thing ,result))
-                                                      (:collect* `(find-element ',thing ,result))))
+               `(collecting-element-children (,kid ,(getter thing type))
                   ,(expand-parser more kid))))
-          (:plist
-             (let ((plist (pop more)))
-               (assert (not more))
-               `(list ,@(loop while plist for key = (pop plist)
-                              for thing = (pop plist)
-                              append (list key (expand-parser thing result))))))
-          (:list
-             (let ((list (pop more)))
-               (assert (not more))
-               `(list ,@(loop while list
-                              for thing = (pop list)
-                              collect (expand-parser thing result)))))))
+           ((:element :attribute)
+              (let ((kid (gensym "KID"))
+                    (thing (pop more)))
+                `(let ((,kid ,(getter thing action)))
+                   ,(expand-parser more kid))))
+           (:plist
+              (let ((plist (pop more)))
+                (assert (not more))
+                `(list ,@(loop while plist for key = (pop plist)
+                               for thing = (pop plist)
+                               append (list key (expand-parser thing result))))))
+           (:list
+              (let ((list (pop more)))
+                (assert (not more))
+                `(list ,@(loop while list
+                               for thing = (pop list)
+                               collect (expand-parser thing result))))))))
       (if spec
         `(getattr ',spec ,result)
         result))))
@@ -207,7 +215,8 @@
     ((availability-zones availability-zones
                          :required-key (list (aws:default-zone)))
      (load-balancer-name string :required t)
-     (listeners listeners :required t)))
+     (listeners listeners :required t))
+  (:element |CreateLoadBalancerResult| :attribute |DNSName|))
 
 (defaction delete-load-balancer
     ((load-balancer-name string :required t)))
@@ -217,10 +226,10 @@
      (load-balancer-name string :required t)))
 
 (defaction describe-load-balancers ((load-balancers load-balancer-names))
-  (:collect |DescribeLoadBalancersResult|
-    :plist (:name |LoadBalancerName| :dns |DNSName|
-                  :listeners (:collect* |Listeners|
-                                  :list (|Protocol| |LoadBalancerPort| |InstancePort|)))))
+  (:collect :attribute |DescribeLoadBalancersResult|
+            :plist (:name |LoadBalancerName| :dns |DNSName|
+                          :listeners (:collect :element |Listeners|
+                                               :list (|Protocol| |LoadBalancerPort| |InstancePort|)))))
 
 (defaction describe-instance-health
     ((instances instances)
