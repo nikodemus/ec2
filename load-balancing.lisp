@@ -90,7 +90,26 @@
              (let ((values (pop more)))
                (assert (not more))
                `(values ,@(loop for value in values
-                                collect (expand-parser value result))))))))
+                                collect (expand-parser value result)))))
+           (:translate
+              (let ((translations (pop more))
+                    (value (pop more))
+                    (tmp (gensym "TMP"))
+                    (cell (gensym "CELL")))
+                `(let* ((,tmp ,(expand-parser value result))
+                        (,cell (assoc ,tmp ,translations :test #'equal)))
+                   (cond (,cell
+                          (cdr ,cell))
+                         (t
+                          (with-simple-restart
+                              (continue "Return ~S without translation."
+                                        ,tmp)
+                            (error "No translation for ~S in ~S."
+                                   ,tmp ',translations))
+                          ,tmp)))))
+           (:atom
+              `(destructuring-bind (atom) ,result
+                 atom)))))
       (if spec
         `(getattr ',spec ,result)
         result))))
@@ -141,12 +160,14 @@
          param action))
 
 (defmacro defaction (action parameters &optional parser)
-  (let (required-parameters keyword-parameters aggregates)
+  (let (required-parameters optional-parameters keyword-parameters aggregates)
     (dolist (spec parameters)
       (destructuring-bind (name type
                            &key
+                           optional
                            required
                            required-key
+                           required-optional
                            required-aggregate) spec
         (declare (ignore type))
         (cond (required
@@ -171,9 +192,17 @@
                  (push `(,name (list ,@parts)) aggregates)))
               (required-key
                (push `(,name ,required-key) keyword-parameters))
+              (optional
+               (push name optional-parameters))
+              (required-optional
+               (push `(,name ,required-optional) optional-parameters))
               (t
                (push name keyword-parameters)))))
+    (when (and optional-parameters keyword-parameters)
+      (error "Both &OPTIONAL and &KEY? Think again."))
     `(defun ,action (,@(reverse required-parameters)
+                     ,@(when optional-parameters '(&optional))
+                     ,@(reverse optional-parameters)
                      ,@(when keyword-parameters '(&key))
                      ,@keyword-parameters)
        (let ,aggregates
@@ -185,6 +214,8 @@
                                     (destructuring-bind (name type
                                                          &key
                                                          required
+                                                         optional
+                                                         required-optional
                                                          required-aggregate
                                                          required-key)
                                         spec
@@ -198,14 +229,17 @@
                                           (cond
                                             (required
                                              parameter-form)
-                                            (required-key
+                                            ((or required-key required-optional)
                                              `(if ,name
                                                 ,parameter-form
-                                                (missing-parameter ,(make-keyword name)
+                                                (missing-parameter ,(if required-key
+                                                                      (make-keyword name)
+                                                                      name)
                                                                    ',action)))
                                             (t
                                              `(when ,name ,parameter-form)))))))
                                   parameters))))))
+           (declare (ignorable result))
            ,(expand-parser parser 'result))))))
 
 ;;;; API
@@ -219,46 +253,77 @@
        (interval health-check-interval :default 30)
        (target string)
        (timeout health-check-timeout :default 5)
-       (unhealthy-threshold unhealthy-threshold :default 5)))))
+       (unhealthy-threshold unhealthy-threshold :default 5))))
+  (:attribute |ConfigureHealthCheckResult|
+              :plist (:interval |Interval|
+                      :target |Target|
+                      :healthy-threshold |HealthyThreshold|
+                      :timeout |Timeout|
+                      :unhealthy-threshold |UnhealthyThreshold|)))
 
 (defaction create-load-balancer
-    ((availability-zones availability-zones
-                         :required-key (list (aws:default-zone)))
-     (load-balancer-name string :required t)
-     (listeners listeners :required t))
+    ((load-balancer-name string :required t)
+     (listeners listeners :required t)
+     (availability-zones availability-zones
+                         :required-key (list (aws:default-zone))))
   (:element |CreateLoadBalancerResult|
             :values ((:eval load-balancer-name) |DNSName|)))
 
 (defaction delete-load-balancer
-    ((load-balancer-name string :required t)))
+    ((load-balancer-name string :required t))
+  (:values))
 
-(defaction deregister-instances-from-load-balancers
-    ((instances instances :required t)
-     (load-balancer-name string :required t)))
+(defaction deregister-instances-from-load-balancer
+    ((load-balancer-name string :required t)
+     (instances instances :required t))
+  (:values))
 
-(defaction describe-load-balancers ((load-balancers load-balancer-names))
+(defaction describe-load-balancers
+    ((load-balancers load-balancer-names :optional t))
   (:collect :attribute |DescribeLoadBalancersResult|
-            :plist (:name |LoadBalancerName| :dns |DNSName|
-                          :listeners (:collect :element |Listeners|
-                                               :list (|Protocol| |LoadBalancerPort| |InstancePort|)))))
+            :plist (:name |LoadBalancerName|
+                    :dns |DNSName|
+                    :listeners (:collect :element |Listeners|
+                                         :list (|Protocol|
+                                                |LoadBalancerPort|
+                                                |InstancePort|))
+                    :instances (:collect :element |Instances|
+                                         :attribute |InstanceId|))))
+
+(defparameter *instance-health-states*
+  '(("OutOfService" . :out-of-service)
+    ("InService" . :in-service)))
 
 (defaction describe-instance-health
-    ((instances instances)
-     (load-balancer-name string :required t)))
+    ((load-balancer-name string :required t)
+     (instances instances :optional t))
+  (:element |DescribeInstanceHealthResult|
+            :collect :element |InstanceStates|
+            :plist (:instance |InstanceId|
+                    :state (:translate *instance-health-states* |State|)
+                    :reason |ReasonCode|
+                    :description |Description|)))
 
 (defaction disable-availability-zones-for-load-balancer
-    ((availability-zones
+    ((load-balancer-name string :required t)
+     (availability-zones
       availability-zones
-      :required-key (list (aws:default-zone)))
-     (load-balancer-name string :required t)))
+      :required-optional (aws:default-zone)))
+  (:element |DisableAvailabilityZonesForLoadBalancerResult|
+            :collect :element |AvailabilityZones|
+            :atom))
 
 (defaction enable-availability-zones-for-load-balancer
-    ((availability-zones
+    ((load-balancer-name string :required t)
+     (availability-zones
       availability-zones
-      :required-key (list (aws:default-zone)))
-     (load-balancer-name string :required t)))
+      :required-optional (aws:default-zone)))
+  (:element |EnableAvailabilityZonesForLoadBalancerResult|
+            :collect :element |AvailabilityZones|
+            :atom))
 
-(defaction register-instances-with-load-balancer ((instances instances :required t)
-                                                  (load-balancer-name string :required t))
+(defaction register-instances-with-load-balancer
+    ((load-balancer-name string :required t)
+     (instances instances :required-optional t))
   (:collect :attribute |RegisterInstancesWithLoadBalancerResult|
             :attribute |InstanceId|))
