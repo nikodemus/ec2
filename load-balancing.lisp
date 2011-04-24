@@ -73,15 +73,24 @@
            (:plist
               (let ((plist (pop more)))
                 (assert (not more))
-                `(list ,@(loop while plist for key = (pop plist)
+                `(list ,@(loop while plist
+                               for key = (pop plist)
                                for thing = (pop plist)
                                append (list key (expand-parser thing result))))))
            (:list
               (let ((list (pop more)))
                 (assert (not more))
-                `(list ,@(loop while list
-                               for thing = (pop list)
-                               collect (expand-parser thing result))))))))
+                `(list ,@(loop for elt in list
+                               collect (expand-parser elt result)))))
+           (:eval
+              (let ((thing (pop more)))
+                (assert (not more))
+                thing))
+           (:values
+             (let ((values (pop more)))
+               (assert (not more))
+               `(values ,@(loop for value in values
+                                collect (expand-parser value result))))))))
       (if spec
         `(getattr ',spec ,result)
         result))))
@@ -95,21 +104,22 @@
   (ecase type
     (string
        (list (cons name (the string value))))
-    ((instances load-balancer-names availability-zones)
+    ((load-balancer-names availability-zones)
        (make-member-list name (ensure-list value)))
+    (instances
+       (make-member-list name (ensure-list value) "InstanceId"))
     (listeners
        (make-listener-list name value))))
 
-(defun make-member-list (tag members)
+(defun make-member-list (tag members &optional type)
   (loop for member in members
         for i from 1
-        append
-        (if (consp member)
-          (loop for part in member
-                collect (cons (format nil "~A.member.~A.~A" tag i (car part))
-                              (princ-to-string (cdr part))))
-          (list (cons (format nil "~A.member.~A" tag i)
-                      (princ-to-string member))))))
+        append (if (consp member)
+                   (loop for part in member
+                         collect (cons (format nil "~A.member.~A.~A" tag i (car part))
+                                       (princ-to-string (cdr part))))
+                   (list (cons (format nil "~A.member.~A~@[.~A~]" tag i type)
+                               (princ-to-string member))))))
 
 (defun make-listener-list (name listeners)
   (unless (consp (car listeners))
@@ -216,7 +226,8 @@
                          :required-key (list (aws:default-zone)))
      (load-balancer-name string :required t)
      (listeners listeners :required t))
-  (:element |CreateLoadBalancerResult| :attribute |DNSName|))
+  (:element |CreateLoadBalancerResult|
+            :values ((:eval load-balancer-name) |DNSName|)))
 
 (defaction delete-load-balancer
     ((load-balancer-name string :required t)))
@@ -247,6 +258,7 @@
       :required-key (list (aws:default-zone)))
      (load-balancer-name string :required t)))
 
-(defaction register-instances-with-load-balancer
-    ((instances instances :required t)
-     (load-balancer-name string :required t)))
+(defaction register-instances-with-load-balancer ((instances instances :required t)
+                                                  (load-balancer-name string :required t))
+  (:collect :attribute |RegisterInstancesWithLoadBalancerResult|
+            :attribute |InstanceId|))
