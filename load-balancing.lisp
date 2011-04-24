@@ -324,6 +324,6 @@
 
 (defaction register-instances-with-load-balancer
     ((load-balancer-name string :required t)
-     (instances instances :required-optional t))
+     (instances instances :required t))
   (:collect :attribute |RegisterInstancesWithLoadBalancerResult|
             :attribute |InstanceId|))
