@@ -67,5 +67,5 @@
                                          "initiated-instance" "cloudwatch" "snapshot" "conditions" "package"
                                          "key"))
                (:file "api" :depends-on ("ec2"))
-               (:file "load-balancing" :depends-on "api"))
+               (:file "load-balancing" :depends-on ("api")))
   :depends-on (:s-xml :s-base64 :ironclad :drakma))
