@@ -23,7 +23,7 @@
 
 (in-package :elastic-load-balancing)
 
-(defparameter *elb-api-version* "2009-05-15")
+(defparameter *elb-api-version* "2010-07-01")
 (defparameter *elb-host-header* "elasticloadbalancing.amazonaws.com")
 (defparameter *elb-xmlns*
   (format nil "http://elasticloadbalancing.amazonaws.com/doc/~A/"
@@ -119,26 +119,42 @@
     x
     (list x)))
 
-(defun make-parameter (name value type)
+(defun stringify (thing)
+  (etypecase thing
+    (string thing)
+    (symbol (symbol-name thing))
+    (number (write-to-string thing :radix nil :base 10 :pretty nil))))
+
+(defmacro make-parameter (name value type)
   (ecase type
     (string
-       (list (cons name (the string value))))
-    ((load-balancer-names availability-zones)
-       (make-member-list name (ensure-list value)))
+     `(list (cons ,name (string ,value))))
+    ((long integer)
+     `(list (cons ,name (stringify ,value))))
+    ((load-balancer-names availability-zones integer-list string-list)
+     `(make-member-list ,name (ensure-list ,value)))
     (instances
-       (make-member-list name (ensure-list value) "InstanceId"))
+     `(make-member-list ,name (ensure-list ,value) "InstanceId"))
     (listeners
-       (make-listener-list name value))))
+     `(make-listener-list ,name ,value))))
 
 (defun make-member-list (tag members &optional type)
-  (loop for member in members
-        for i from 1
-        append (if (consp member)
-                   (loop for part in member
-                         collect (cons (format nil "~A.member.~A.~A" tag i (car part))
-                                       (princ-to-string (cdr part))))
-                   (list (cons (format nil "~A.member.~A~@[.~A~]" tag i type)
-                               (princ-to-string member))))))
+  (let ((*print-pretty* nil)
+        (*print-radix* nil)
+        (*print-base* 10))
+    (flet ((stringify (thing)
+             (etypecase thing
+              (string thing)
+              (symbol (symbol-name thing))
+              (number (write-to-string thing)))))
+     (loop for member in members
+           for i from 1
+           append (if (consp member)
+                      (loop for part in member
+                            collect (cons (format nil "~A.member.~A.~A" tag i (car part))
+                                          (stringify (cdr part))))
+                      (list (cons (format nil "~A.member.~A~@[.~A~]" tag i type)
+                                  (stringify member))))))))
 
 (defun make-listener-list (name listeners)
   (unless (consp (car listeners))
@@ -168,7 +184,9 @@
                            required
                            required-key
                            required-optional
-                           required-aggregate) spec
+                           required-aggregate
+                           &allow-other-keys)
+          spec
         (declare (ignore type))
         (cond (required
                (push name required-parameters))
@@ -180,7 +198,7 @@
                      (push `(cons ,(format nil "~A.~A"
                                            (string-camelcase name)
                                            (string-camelcase var))
-                                  (princ-to-string
+                                  (stringify
                                    (or ,var
                                        (missing-parameter
                                         ,(make-keyword var)
@@ -213,19 +231,21 @@
                                   (lambda (spec)
                                     (destructuring-bind (name type
                                                          &key
-                                                         required
+                                                         query-parameter
                                                          optional
+                                                         required
                                                          required-optional
                                                          required-aggregate
                                                          required-key)
                                         spec
+                                      (declare (ignore optional))
                                       (if required-aggregate
                                         name
                                         (let ((parameter-form
                                                `(make-parameter
-                                                 ,(string-camelcase name)
+                                                 ,(or query-parameter (string-camelcase name))
                                                  ,name
-                                                 ',type)))
+                                                 ,type)))
                                           (cond
                                             (required
                                              parameter-form)
@@ -261,6 +281,18 @@
                       :timeout |Timeout|
                       :unhealthy-threshold |UnhealthyThreshold|)))
 
+(defaction create-app-cookie-stickiness-policy
+    ((load-balancer-name string :required t)
+     (policy-name string :required t)
+     (cookie-name string :required t))
+  )
+
+(defaction create-lb-cookie-stickiness-policy
+    ((load-balancer-name string :required t)
+     (policy-name string :required t)
+     (cookie-expiration-period long))
+  )
+
 (defaction create-load-balancer
     ((load-balancer-name string :required t)
      (listeners listeners :required t)
@@ -269,9 +301,25 @@
   (:element |CreateLoadBalancerResult|
             :values ((:eval load-balancer-name) |DNSName|)))
 
+(defaction create-load-balancer-listeners
+    ((load-balancer-name string :required t)
+     ;; TODO: update listener type
+     (listeners listeners :required t))
+  )
+
 (defaction delete-load-balancer
     ((load-balancer-name string :required t))
   (:values))
+
+(defaction delete-load-balancer-listeners
+    ((load-balancer-name string :required t)
+     (load-balancer-ports integer-list :required t))
+  )
+
+(defaction delete-load-balancer-policy
+    ((load-balancer-name string :required t)
+     (policy-name string :required t))
+  )
 
 (defaction deregister-instances-from-load-balancer
     ((load-balancer-name string :required t)
@@ -327,3 +375,16 @@
      (instances instances :required t))
   (:collect :attribute |RegisterInstancesWithLoadBalancerResult|
             :attribute |InstanceId|))
+
+(defaction set-load-balancer-listener-ssl-certificate
+    ((load-balancer-name string :required t)
+     (load-balancer-port integer :required t)
+     (ssl-certificate-id string :required t :query-parameter "SSLCertificateId"))
+  )
+
+(defaction set-load-balancer-policies-of-listener
+    ((load-balancer-name string :required t)
+     (load-balancer-port integer :required t)
+     (policy-names string-list :required t))
+  )
+
