@@ -60,37 +60,35 @@
         (destructuring-bind (action &rest more) spec
          (ecase action
            (:collect
-             (let ((kid (gensym "KID"))
-                   (type (pop more))
-                   (thing (pop more)))
-               `(collecting-element-children (,kid ,(getter thing type))
-                  ,(expand-parser more kid))))
-           ((:element :attribute)
-              (let ((kid (gensym "KID"))
-                    (thing (pop more)))
-                `(let ((,kid ,(getter thing action)))
-                   ,(expand-parser more kid))))
+             (let ((kid (gensym "KID")))
+               (destructuring-bind ((type name) &optional collect-proc) more
+                 `(collecting-element-children (,kid ,(getter name type))
+                    ,(expand-parser collect-proc kid)))))
+           (:append
+              `(append ,@(mapcar (lambda (thing)
+                                   (expand-parser thing result))
+                                 more)))
+           (:select
+              (let ((kid (gensym "KID")))
+                (destructuring-bind ((type name) &optional select-proc) more
+                  `(let ((,kid ,(getter name type)))
+                     ,(expand-parser select-proc kid)))))
            (:plist
-              (let ((plist (pop more)))
-                (assert (not more))
-                `(list ,@(loop while plist
-                               for key = (pop plist)
-                               for thing = (pop plist)
-                               append (list key (expand-parser thing result))))))
+              `(loop for key in ',(loop for key in more by #'cddr collect key)
+                     for value in (list ,@(loop for value in (cdr more) by #'cddr
+                                                collect (expand-parser value result)))
+                     when value
+                       append (list key value)))
            (:list
-              (let ((list (pop more)))
-                (assert (not more))
-                `(list ,@(loop for elt in list
-                               collect (expand-parser elt result)))))
+              `(list ,@(loop for elt in more
+                             collect (expand-parser elt result))))
            (:eval
               (let ((thing (pop more)))
                 (assert (not more))
                 thing))
            (:values
-             (let ((values (pop more)))
-               (assert (not more))
-               `(values ,@(loop for value in values
-                                collect (expand-parser value result)))))
+             `(values ,@(loop for value in more
+                              collect (expand-parser value result))))
            (:translate
               (let ((translations (pop more))
                     (value (pop more))
@@ -108,7 +106,7 @@
                                    ,tmp ',translations))
                           ,tmp)))))
            (:atom
-              `(destructuring-bind (atom) ,result
+              `(destructuring-bind (&optional atom) ,result
                  atom)))))
       (if spec
         `(getattr ',spec ,result)
@@ -163,10 +161,14 @@
    name
    (mapcar
     (lambda (listener)
-      (destructuring-bind (protocol load-balancer-port instance-port) listener
-        (list (cons "Protocol" protocol)
-              (cons "LoadBalancerPort" load-balancer-port)
-              (cons "InstancePort" instance-port))))
+      (destructuring-bind (protocol load-balancer-port instance-port
+                           &optional ssl-id)
+          listener
+        (list* (cons "Protocol" protocol)
+               (cons "LoadBalancerPort" load-balancer-port)
+               (cons "InstancePort" instance-port)
+               (when ssl-id
+                 (list (cons "SSLCertificateId" ssl-id))))))
     (if (consp (car listeners))
       listeners
       (list listeners)))))
@@ -175,7 +177,8 @@
   (error "Required parameter ~S missing from call to ~S"
          param action))
 
-(defmacro defaction (action parameters &optional parser)
+(defmacro defaction (fname parameters parser
+                     &key (action (string-camelcase fname)))
   (let (required-parameters optional-parameters keyword-parameters aggregates)
     (dolist (spec parameters)
       (destructuring-bind (name type
@@ -202,7 +205,7 @@
                                    (or ,var
                                        (missing-parameter
                                         ,(make-keyword var)
-                                        ',action))))
+                                        ',fname))))
                            parts)
                      (if default
                        (push `(,var ,default) keyword-parameters)
@@ -218,14 +221,14 @@
                (push name keyword-parameters)))))
     (when (and optional-parameters keyword-parameters)
       (error "Both &OPTIONAL and &KEY? Think again."))
-    `(defun ,action (,@(reverse required-parameters)
+    `(defun ,fname (,@(reverse required-parameters)
                      ,@(when optional-parameters '(&optional))
                      ,@(reverse optional-parameters)
                      ,@(when keyword-parameters '(&key))
                      ,@keyword-parameters)
        (let ,aggregates
          (let ((result (elb-request
-                        (cons '("Action" . ,(string-camelcase action))
+                        (cons '("Action" . ,action)
                               (append
                                ,@(mapcar
                                   (lambda (spec)
@@ -274,38 +277,40 @@
        (target string)
        (timeout health-check-timeout :default 5)
        (unhealthy-threshold unhealthy-threshold :default 5))))
-  (:attribute |ConfigureHealthCheckResult|
-              :plist (:interval |Interval|
-                      :target |Target|
-                      :healthy-threshold |HealthyThreshold|
-                      :timeout |Timeout|
-                      :unhealthy-threshold |UnhealthyThreshold|)))
+  (:select (:attribute |ConfigureHealthCheckResult|)
+           (:plist
+            :interval |Interval|
+            :target |Target|
+            :healthy-threshold |HealthyThreshold|
+            :timeout |Timeout|
+            :unhealthy-threshold |UnhealthyThreshold|)))
 
 (defaction create-app-cookie-stickiness-policy
     ((load-balancer-name string :required t)
      (policy-name string :required t)
      (cookie-name string :required t))
-  )
+  (:values (:eval policy-name) (:eval cookie-name)))
 
 (defaction create-lb-cookie-stickiness-policy
     ((load-balancer-name string :required t)
      (policy-name string :required t)
-     (cookie-expiration-period long))
-  )
+     (cookie-expiration-period long :optional t))
+  (:values (:eval policy-name) (:eval cookie-expiration-period))
+  :action "CreateLBCookieStickinessPolicy")
 
 (defaction create-load-balancer
     ((load-balancer-name string :required t)
      (listeners listeners :required t)
      (availability-zones availability-zones
                          :required-key (list (aws:default-zone))))
-  (:element |CreateLoadBalancerResult|
-            :values ((:eval load-balancer-name) |DNSName|)))
+  (:values (:eval load-balancer-name)
+           (:select (:element |CreateLoadBalancerResult|)
+                    (:select (:attribute |DNSName|)))))
 
 (defaction create-load-balancer-listeners
     ((load-balancer-name string :required t)
-     ;; TODO: update listener type
      (listeners listeners :required t))
-  )
+  (:values))
 
 (defaction delete-load-balancer
     ((load-balancer-name string :required t))
@@ -314,12 +319,12 @@
 (defaction delete-load-balancer-listeners
     ((load-balancer-name string :required t)
      (load-balancer-ports integer-list :required t))
-  )
+  (:values))
 
 (defaction delete-load-balancer-policy
     ((load-balancer-name string :required t)
      (policy-name string :required t))
-  )
+  (:values))
 
 (defaction deregister-instances-from-load-balancer
     ((load-balancer-name string :required t)
@@ -327,16 +332,38 @@
   (:values))
 
 (defaction describe-load-balancers
-    ((load-balancers load-balancer-names :optional t))
-  (:collect :attribute |DescribeLoadBalancersResult|
-            :plist (:name |LoadBalancerName|
-                    :dns |DNSName|
-                    :listeners (:collect :element |Listeners|
-                                         :list (|Protocol|
-                                                |LoadBalancerPort|
-                                                |InstancePort|))
-                    :instances (:collect :element |Instances|
-                                         :attribute |InstanceId|))))
+    ((load-balancer-names load-balancer-names :optional t))
+  (:collect (:attribute |DescribeLoadBalancersResult|)
+    (:plist
+     :name |LoadBalancerName|
+     :dns |DNSName|
+     :created-time |CreatedTime|
+     :health-check (:select (:element |HealthCheck|)
+                            (:plist
+                             :interval |Interval|
+                             :target |Target|
+                             :healthy-threshold |HealthyThreshold|
+                             :timeout |Timeout|
+                             :unhealthy-threshold |UnhealthyThreshold|))
+     :listeners (:collect (:element |ListenerDescriptions|)
+                  (:append (:select (:element |Listener|)
+                                    (:plist
+                                     :listener (:list |Protocol|
+                                                      |LoadBalancerPort|
+                                                      |InstancePort|
+                                                      |SSLCertificateId|)))
+                           (:select (:element |PolicyNames|)
+                             (:plist :policy (:select (:attribute |member|))))))
+     :instances (:collect (:element |Instances|)
+                  (:select (:attribute |InstanceId|)))
+     :availability-zones (:collect (:element |AvailabilityZones|)
+                           (:atom))
+     :app-cookie-stickines-policies (:select (:element |Policies|)
+                                             (:collect (:element |AppCookieStickinessPolicies|)
+                                               (:list |PolicyName| |CookieName|)))
+     :lb-cookie-stickines-policies (:select (:element |Policies|)
+                                            (:collect (:element |LBCookieStickinessPolicies|)
+                                              (:select (:attribute |PolicyName|)))))))
 
 (defparameter *instance-health-states*
   '(("OutOfService" . :out-of-service)
@@ -345,46 +372,44 @@
 (defaction describe-instance-health
     ((load-balancer-name string :required t)
      (instances instances :optional t))
-  (:element |DescribeInstanceHealthResult|
-            :collect :element |InstanceStates|
-            :plist (:instance |InstanceId|
-                    :state (:translate *instance-health-states* |State|)
-                    :reason |ReasonCode|
-                    :description |Description|)))
+  (:select (:element |DescribeInstanceHealthResult|)
+           (:collect (:element |InstanceStates|)
+             (:plist :instance |InstanceId|
+                     :state (:translate *instance-health-states* |State|)
+                     :reason |ReasonCode|
+                     :description |Description|))))
 
 (defaction disable-availability-zones-for-load-balancer
     ((load-balancer-name string :required t)
      (availability-zones
       availability-zones
       :required-optional (aws:default-zone)))
-  (:element |DisableAvailabilityZonesForLoadBalancerResult|
-            :collect :element |AvailabilityZones|
-            :atom))
+  (:select (:element |DisableAvailabilityZonesForLoadBalancerResult|)
+           (:collect (:element |AvailabilityZones|) (:atom))))
 
 (defaction enable-availability-zones-for-load-balancer
     ((load-balancer-name string :required t)
      (availability-zones
       availability-zones
       :required-optional (aws:default-zone)))
-  (:element |EnableAvailabilityZonesForLoadBalancerResult|
-            :collect :element |AvailabilityZones|
-            :atom))
+  (:select (:element |EnableAvailabilityZonesForLoadBalancerResult|)
+           (:collect (:element |AvailabilityZones|) (:atom))))
 
 (defaction register-instances-with-load-balancer
     ((load-balancer-name string :required t)
      (instances instances :required t))
-  (:collect :attribute |RegisterInstancesWithLoadBalancerResult|
-            :attribute |InstanceId|))
+  (:collect (:attribute |RegisterInstancesWithLoadBalancerResult|)
+    (:select (:attribute |InstanceId|))))
 
+;;; Untested
 (defaction set-load-balancer-listener-ssl-certificate
     ((load-balancer-name string :required t)
      (load-balancer-port integer :required t)
      (ssl-certificate-id string :required t :query-parameter "SSLCertificateId"))
-  )
+  (:values))
 
 (defaction set-load-balancer-policies-of-listener
     ((load-balancer-name string :required t)
      (load-balancer-port integer :required t)
      (policy-names string-list :required t))
-  )
-
+  (:values))
